@@ -1,0 +1,5 @@
+{
+  "name": "İtalya Eğitim Rehberi",
+  "description": "An interactive guide for Turkish students planning to study in Italy. Select a city on the map to get AI-powered information on accommodation, universities, daily life, and more.",
+  "requestFramePermissions": []
+}

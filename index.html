@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>İtalya Eğitim Rehberi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg-primary: #F8F9FA;
+        --bg-secondary: #FFFFFF;
+        --bg-tertiary: #E9ECEF;
+        --accent-primary: #007BFF;
+        --accent-secondary: #60A5FA;
+        --text-primary: #212529;
+        --text-secondary: #495057;
+        --border-color: #DEE2E6;
+        --shadow-color-light: rgba(0, 123, 255, 0.1);
+        --shadow-color-dark: rgba(33, 37, 41, 0.1);
+        --water-color: #DDEEFF;
+        --land-color: #FDFBF5;
+        --land-stroke: #C0C0C0;
+        --city-default: #007BFF;
+        --city-hover: #0056b3;
+        --city-selected: #D6336C;
+        --city-comparison: #fd7e14; /* Orange for comparison */
+        --city-recommendation: #F59E0B; /* Amber for recommendation */
+      }
+      body {
+        overscroll-behavior: none;
+        background-color: var(--bg-primary);
+        color: var(--text-primary);
+        font-family: 'Inter', sans-serif;
+        background-image: linear-gradient(to top, #e6e9f0 0%, #eef1f5 100%);
+      }
+      @keyframes gentle-pulse {
+        0%, 100% {
+          transform: scale(2.2);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1);
+          opacity: 0.5;
+        }
+      }
+       @keyframes gentle-pulse-orange {
+        0%, 100% {
+          transform: scale(2.2);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1);
+          opacity: 0.6;
+        }
+      }
+       @keyframes recommendation-pulse {
+        0%, 100% {
+          transform: scale(2.8);
+          opacity: 0;
+        }
+        50% {
+          transform: scale(1.2);
+          opacity: 0.7;
+        }
+      }
+       @keyframes fill-bar {
+        from {
+          width: 0%;
+        }
+        to {
+          width: var(--value, 0%);
+        }
+      }
+      .animate-gentle-pulse {
+        animation: gentle-pulse 2.5s ease-out infinite;
+      }
+       .animate-gentle-pulse-orange {
+        animation: gentle-pulse-orange 2.5s ease-out infinite;
+      }
+      .animate-recommendation-pulse {
+        animation: recommendation-pulse 2s ease-out infinite;
+      }
+      
+      /* --- Enhanced Prose Styles --- */
+      .prose {
+        --tw-prose-body: var(--text-secondary);
+        --tw-prose-headings: var(--text-primary);
+        --tw-prose-lead: var(--text-secondary);
+        --tw-prose-links: var(--accent-primary);
+        --tw-prose-bold: var(--text-primary);
+        --tw-prose-counters: var(--accent-secondary);
+        --tw-prose-bullets: var(--accent-primary);
+        --tw-prose-hr: var(--border-color);
+        --tw-prose-quotes: var(--text-primary);
+        --tw-prose-quote-borders: var(--accent-primary);
+        --tw-prose-captions: #6c757d;
+        --tw-prose-code: var(--accent-primary);
+        --tw-prose-pre-code: #e9ecef;
+        --tw-prose-pre-bg: #212529;
+      }
+      .prose h1, .prose h2, .prose h3 {
+        font-weight: 700;
+      }
+      .prose h2 {
+        font-size: 1.5em;
+        margin-top: 1.5em;
+        margin-bottom: 0.75em;
+        padding-bottom: 0.3em;
+        border-bottom: 1px solid var(--border-color);
+      }
+      .prose h3 {
+        font-size: 1.25em;
+        margin-top: 1.25em;
+        margin-bottom: 0.5em;
+      }
+      .prose ul {
+        list-style-position: outside;
+        padding-left: 1.2em;
+      }
+      .prose ul > li {
+        margin-top: 0.5em;
+        margin-bottom: 0.5em;
+      }
+      .prose ul > li::marker {
+        color: var(--accent-primary);
+      }
+      .prose a {
+        font-weight: 500;
+        text-decoration: none;
+        background-image: linear-gradient(var(--accent-secondary), var(--accent-secondary));
+        background-position: 0% 100%;
+        background-repeat: no-repeat;
+        background-size: 0% 2px;
+        transition: background-size .3s, color .3s;
+      }
+      .prose a:hover {
+        background-size: 100% 2px;
+        color: var(--text-primary);
+      }
+      .prose blockquote {
+        border-left-width: 4px;
+        border-left-color: var(--accent-primary);
+        padding: 0.5em 1em;
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-style: italic;
+      }
+      .prose blockquote p:first-of-type::before,
+      .prose blockquote p:last-of-type::after {
+        content: none;
+      }
+
+      /* --- Source List Styles --- */
+      .sources-section {
+          margin-top: 2rem;
+          padding-top: 1.5rem;
+          border-top: 1px solid var(--border-color);
+      }
+      .sources-section h3 {
+          font-size: 1.1em;
+          font-weight: 600;
+          color: var(--text-primary);
+          margin-bottom: 0.75rem;
+      }
+      .sources-list {
+          list-style-type: decimal;
+          padding-left: 1.5rem;
+          font-size: 0.9em;
+      }
+      .sources-list li {
+          margin-bottom: 0.75rem;
+      }
+      .sources-list li a {
+          color: var(--accent-primary);
+          text-decoration: none;
+          font-weight: 500;
+          word-break: break-word;
+          transition: color 0.2s ease;
+      }
+      .sources-list li a:hover {
+          text-decoration: underline;
+          color: var(--city-hover);
+      }
+       .sources-list li a .source-title {
+          display: block;
+          font-weight: 600;
+          color: var(--text-primary);
+      }
+       .sources-list li a .source-uri {
+          color: var(--text-secondary);
+          font-size: 0.9em;
+      }
+       .comparison-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1.5rem;
+      }
+      .welcome-tour-backdrop {
+        background-color: rgba(33, 37, 41, 0.6);
+        backdrop-filter: blur(5px);
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.17.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/",
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "marked": "https://aistudiocdn.com/marked@^16.2.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
