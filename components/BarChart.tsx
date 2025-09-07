@@ -52,12 +52,6 @@ const BarChart: React.FC<BarChartProps> = ({ stats }) => {
                 })}
             </div>
              <p className="text-xs text-center text-gray-500 mt-4 italic">Daha fazla ayrıntı için yukarıdan bir konu seçin.</p>
-             <style>{`
-                @keyframes fill-bar {
-                    from { width: 0; }
-                    to { width: var(--value); }
-                }
-            `}</style>
         </div>
     );
 };
