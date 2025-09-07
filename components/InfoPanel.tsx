@@ -196,7 +196,7 @@ const InfoPanel: React.FC<InfoPanelProps> = ({ isOpen, onClose, city, topic, chi
 
         switch (activeView) {
             case 'roadmap':
-                return <Checklist city={city} />;
+                return <Checklist />;
             case 'topics':
                 if (topic) {
                     return React.Children.map(children, child => {

@@ -1,19 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { City } from '../types';
 import { CHECKLIST_STAGES } from '../constants';
 
-interface ChecklistProps {
-    city: City;
-}
+interface ChecklistProps {}
 
-const Checklist: React.FC<ChecklistProps> = ({ city }) => {
-    const storageKey = `checklist_${city.id}`;
+const STORAGE_KEY = 'italy_guide_checklist';
+
+const Checklist: React.FC<ChecklistProps> = () => {
     const allItemIds = useMemo(() => CHECKLIST_STAGES.flatMap(stage => stage.items.map(item => item.id)), []);
     const totalItems = allItemIds.length;
 
     const [checkedItems, setCheckedItems] = useState<Set<string>>(() => {
         try {
-            const saved = localStorage.getItem(storageKey);
+            const saved = localStorage.getItem(STORAGE_KEY);
             return saved ? new Set(JSON.parse(saved)) : new Set();
         } catch (error) {
             console.error("Error reading checklist from localStorage", error);
@@ -23,11 +21,11 @@ const Checklist: React.FC<ChecklistProps> = ({ city }) => {
 
     useEffect(() => {
         try {
-            localStorage.setItem(storageKey, JSON.stringify(Array.from(checkedItems)));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(checkedItems)));
         } catch (error) {
             console.error("Error saving checklist to localStorage", error);
         }
-    }, [checkedItems, storageKey]);
+    }, [checkedItems]);
 
     const handleToggle = (itemId: string) => {
         setCheckedItems(prev => {
