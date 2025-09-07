@@ -2,7 +2,26 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { marked } from 'marked';
 import { City, ComparisonDataPoint, SubTopic, CityStat, SurveyAnswers, CityRecommendation, UniversityFilters, UniversityProgram } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const API_KEY = process.env.API_KEY as string;
+let ai: GoogleGenAI | null = null;
+
+if (!API_KEY) {
+    console.error("FATAL: Google AI API Key (API_KEY) is not set in the environment. AI features will fail.");
+} else {
+    try {
+        ai = new GoogleGenAI({ apiKey: API_KEY });
+    } catch (error) {
+        console.error("Error initializing GoogleGenAI:", error);
+    }
+}
+
+function getAiInstance() {
+    if (!ai) {
+        throw new Error("Google AI client is not initialized. Make sure the API_KEY is set correctly in your environment.");
+    }
+    return ai;
+}
+
 
 interface FetchInfoResponse {
     htmlContent: string;
@@ -41,7 +60,8 @@ export const fetchInfo = async (city: string, topicName: string, topicId: string
     const isVisaTopic = topicId === 'visa';
 
     try {
-        const response = await ai.models.generateContent({
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             ...(isVisaTopic && { config: { tools: [{ googleSearch: {} }] } }),
@@ -120,7 +140,75 @@ export const fetchStructuredComparison = async (
     };
 
     try {
-        const response = await ai.models.generateContent({
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+            },
+        });
+
+        const jsonStr = response.text.trim();
+        const parsedData = JSON.parse(jsonStr);
+
+        // Ensure the response matches the sub-topic names we requested for consistency
+        const validatedData = subTopics.map(st => {
+            const found = parsedData.find((item: any) => item.subTopic === st.name);
+            if (found) {
+                return {
+                    subTopic: st.name,
+                    rating: found.rating,
+                    summary: found.summary
+                };
+            }
+            // If the AI didn't return a specific sub-topic, provide a default
+            return {
+                subTopic: st.name,
+                rating: 0,
+                summary: 'Veri alınamadı.'
+            };
+        });
+
+        return validatedData;
+
+    } catch (error) {
+        console.error(`Error fetching structured comparison for ${city.name}:`, error);
+        throw new Error(`Failed to get comparison data for ${city.name}.`);
+    }
+};
+
+
+/**
+ * Fetches a short, updated introduction for each city.
+ * @param cities - The initial array of city objects.
+ * @returns An updated array of city objects with new descriptions.
+ */
+export const fetchAllCityIntros = async (cities: City[]): Promise<City[]> => {
+    const prompt = `
+        For each of the following Italian cities, provide a very brief, one-sentence description (in Turkish, max 15 words) for a Turkish student planning to study there. The tone should be catchy and informative.
+        
+        Cities: ${cities.map(c => c.name).join(', ')}
+        
+        Return the data ONLY in the specified JSON format. Do not include any other text or markdown formatting. The 'id' must be the lowercase, url-friendly version of the city name.
+    `;
+
+    const responseSchema = {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                id: { type: Type.STRING },
+                description: { type: Type.STRING }
+            },
+            required: ["id", "description"]
+        }
+    };
+    
+    try {
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -129,79 +217,99 @@ export const fetchStructuredComparison = async (
             },
         });
         
-        const jsonText = response.text.trim();
-        const parsedJson = JSON.parse(jsonText);
+        const jsonStr = response.text.trim();
+        const descriptions: { id: string, description: string }[] = JSON.parse(jsonStr);
 
-        // Ensure the response matches the subtopics we requested
-        return subTopics.map(st => {
-            const found = parsedJson.find((p: any) => p.subTopic === st.name);
-            return found || { subTopic: st.name, rating: 0, summary: 'Veri alınamadı.' };
+        // Map the new descriptions back to the original cities array
+        const updatedCities = cities.map(city => {
+            const newDesc = descriptions.find(d => d.id === city.id);
+            return newDesc ? { ...city, description: newDesc.description } : city;
         });
 
+        return updatedCities;
     } catch (error) {
-        console.error(`Error fetching structured data for ${city.name}:`, error);
-        throw new Error(`Failed to get structured information for ${city.name}.`);
+        console.error("Error fetching all city intros:", error);
+        // On failure, return the original cities array to prevent app crash
+        return cities;
     }
 };
 
-
 /**
- * Fetches vibrant, introductory descriptions for all cities using the Gemini API.
- * @param cities - The initial array of cities.
- * @returns A new array of cities with AI-generated descriptions.
+ * Fetches personalized city recommendations based on survey answers.
+ * @param answers - The user's answers from the survey.
+ * @param cities - The list of available cities.
+ * @returns An array of CityRecommendation objects.
  */
-export const fetchAllCityIntros = async (cities: City[]): Promise<City[]> => {
-    try {
-        const cityPromises = cities.map(async (city) => {
-            const prompt = `
-                Write a short, vibrant, and inviting introductory paragraph (around 25-35 words) about the city of ${city.name}, Italy.
-                The target audience is a Turkish student considering studying there.
-                The tone should be exciting and appealing, highlighting its unique character for a student.
-                Respond ONLY with the paragraph itself. No titles, no extra text, no markdown.
-                The entire response must be in Turkish.
-            `;
-            try {
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                });
-                const newDescription = response.text.trim();
-                return { ...city, description: newDescription };
-            } catch (error) {
-                console.error(`Failed to fetch intro for ${city.name}:`, error);
-                return city; // Fallback to original description on error
-            }
+export const fetchSurveyRecommendations = async (answers: SurveyAnswers, cities: City[]): Promise<CityRecommendation[]> => {
+    const cityList = cities.map(c => `${c.name} (ID: ${c.id})`).join(', ');
+
+    const prompt = `
+        A Turkish student has answered a survey about their preferences for studying in Italy. Based on their answers, recommend the top 3 most suitable cities from the provided list.
+        
+        Student's Preferences:
+        - Monthly Budget: ${answers.budget} (${answers.budget === 'low' ? 'Ekonomik' : answers.budget === 'medium' ? 'Orta' : 'Geniş'})
+        - Preferred City Life: ${answers.cityLife} (${answers.cityLife === 'calm' ? 'Sakin ve tarihi' : answers.cityLife === 'balanced' ? 'Dengeli kültürel hayat' : 'Hareketli ve modern'})
+        - Field of Study: ${answers.fieldOfStudy} (${answers.fieldOfStudy === 'art' ? 'Sanat & Tasarım' : answers.fieldOfStudy === 'tech' ? 'Mühendislik & Teknoloji' : answers.fieldOfStudy === 'social' ? 'Sosyal Bilimler' : 'Tıp & Sağlık'})
+        
+        Available Cities: ${cityList}
+        
+        For each of the top 3 cities, provide:
+        1. "cityId": The exact ID of the city (e.g., 'milan').
+        2. "reason": A short, personalized reason (in Turkish, max 20 words) explaining why this city is a good match for the student.
+        
+        Return the data ONLY in the specified JSON format. Do not include any other text.
+    `;
+    
+    const responseSchema = {
+        type: Type.ARRAY,
+        items: {
+            type: Type.OBJECT,
+            properties: {
+                cityId: { type: Type.STRING },
+                reason: { type: Type.STRING }
+            },
+            required: ["cityId", "reason"]
+        }
+    };
+    
+     try {
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+            },
         });
+        
+        const jsonStr = response.text.trim();
+        const recommendations: CityRecommendation[] = JSON.parse(jsonStr);
 
-        return await Promise.all(cityPromises);
-
+        return recommendations;
     } catch (error) {
-        console.error("Error fetching city intros in parallel:", error);
-        return cities; // On total failure, return original cities
+        console.error("Error fetching survey recommendations:", error);
+        throw new Error("Failed to get survey recommendations.");
     }
 };
 
 /**
- * Fetches key statistics for a city.
+ * Fetches key statistics for a city for the overview panel.
  * @param city - The city to get stats for.
  * @returns An array of CityStat objects.
  */
 export const fetchCityStats = async (city: City): Promise<CityStat[]> => {
     const prompt = `
-        As an expert consultant for Turkish students studying in Italy, provide key statistics for ${city.name}.
-        I need data for the following three metrics:
-        1. "Yaşam Maliyeti": How affordable is the city? Rate from 0 to 100, where 100 is very cheap and 0 is very expensive.
-        2. "Üniversite Kalitesi": What is the general academic reputation of universities in the city? Rate from 0 to 100, where 100 is excellent.
-        3. "Güvenlik": How safe is the city for students? Rate from 0 to 100, where 100 is extremely safe.
-
+        Provide a summary for a Turkish student about ${city.name}, Italy, focusing on these three key metrics: "Yaşam Maliyeti" (Cost of Living), "Üniversite Kalitesi" (University Quality), and "Güvenlik" (Safety).
+        
         For each metric, provide:
-        1. The exact "metric" name as listed above.
-        2. A "value" as an integer between 0 and 100.
-        3. A very short, one-sentence "summary" in Turkish explaining the value.
-
+        1. "metric": The exact name of the metric in Turkish.
+        2. "value": A score from 0 to 100 representing the city's performance from a student's perspective. For 'Yaşam Maliyeti', a higher score means it's MORE affordable (cheaper).
+        3. "summary": A very brief (1-2 sentences, in Turkish) explanation of the score.
+        
         Return the data ONLY in the specified JSON format. Do not include any other text or markdown formatting.
     `;
-
+    
     const responseSchema = {
         type: Type.ARRAY,
         items: {
@@ -216,7 +324,8 @@ export const fetchCityStats = async (city: City): Promise<CityStat[]> => {
     };
 
     try {
-        const response = await ai.models.generateContent({
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -225,96 +334,42 @@ export const fetchCityStats = async (city: City): Promise<CityStat[]> => {
             },
         });
         
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as CityStat[];
+        const jsonStr = response.text.trim();
+        const stats: CityStat[] = JSON.parse(jsonStr);
+
+        return stats;
     } catch (error) {
         console.error(`Error fetching stats for ${city.name}:`, error);
         throw new Error(`Failed to get stats for ${city.name}.`);
     }
 };
 
-
 /**
- * Fetches personalized city recommendations based on a user's survey answers.
- * @param answers - The user's answers from the survey.
- * @param cities - The list of available cities to choose from.
- * @returns A promise that resolves to an array of CityRecommendation objects.
- */
-export const fetchSurveyRecommendations = async (answers: SurveyAnswers, cities: City[]): Promise<CityRecommendation[]> => {
-    const cityList = cities.map(c => `- ${c.name} (id: ${c.id})`).join('\n');
-    const prompt = `
-        You are an expert student counselor for Turkish students planning to study in Italy.
-        A student has provided their preferences through a survey. Your task is to recommend the top 3 most suitable cities from the provided list.
-
-        Student's Preferences:
-        - Monthly Budget: ${answers.budget === 'low' ? '€500-€700' : answers.budget === 'medium' ? '€700-€1000' : '€1000+'}
-        - Desired City Life: ${answers.cityLife === 'calm' ? 'Calm and Historic' : answers.cityLife === 'balanced' ? 'Balanced and Cultural' : 'Vibrant and Modern'}
-        - Field of Study: ${answers.fieldOfStudy === 'art' ? 'Art & Design' : answers.fieldOfStudy === 'tech' ? 'Engineering & Technology' : answers.fieldOfStudy === 'social' ? 'Social Sciences' : 'Medicine & Health'}
-
-        Available Cities:
-        ${cityList}
-
-        Based on these preferences, analyze the available cities and select the top 3. For each recommended city, provide its exact 'cityId' and a concise 'reason' (in Turkish, max 20-25 words) explaining why it's a great match for the student.
-
-        Return the data ONLY in the specified JSON format. Do not include any other text, markdown, or explanations. The response should be an array of 3 objects.
-    `;
-
-    const responseSchema = {
-        type: Type.ARRAY,
-        items: {
-            type: Type.OBJECT,
-            properties: {
-                cityId: { type: Type.STRING },
-                reason: { type: Type.STRING }
-            },
-            required: ["cityId", "reason"]
-        }
-    };
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: responseSchema,
-            },
-        });
-        
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as CityRecommendation[];
-    } catch (error) {
-        console.error("Error fetching survey recommendations:", error);
-        throw new Error("Failed to get recommendations from the AI model.");
-    }
-};
-
-/**
- * Fetches university programs from the Gemini API based on user-defined filters.
- * @param filters - The filter criteria for the search.
- * @returns A promise that resolves to an array of UniversityProgram objects.
+ * Fetches a list of university programs based on user filters.
+ * @param filters - The filters selected by the user.
+ * @returns A list of matching university programs.
  */
 export const fetchUniversities = async (filters: UniversityFilters): Promise<UniversityProgram[]> => {
     const prompt = `
-        You are an expert on higher education in Italy, tasked with helping a Turkish student find university programs.
-        The user has provided the following search criteria:
+        You are an academic advisor for Turkish students. Find university programs in Italy that match the following criteria. Return a list of up to 10 relevant programs.
+        
+        Criteria:
         - Field of Study: ${filters.fieldOfStudy === 'any' ? 'Any' : filters.fieldOfStudy}
         - Language of Instruction: ${filters.language === 'any' ? 'Any' : filters.language}
         - Maximum Annual Tuition Fee: €${filters.tuitionMax}
-
-        Based on these criteria, search for relevant Bachelor's or Master's degree programs in Italy.
-        For each program you find (limit to a maximum of 15 relevant results), provide the following details:
-        1.  **universityName**: The full name of the university.
-        2.  **programName**: The name of the specific degree program.
-        3.  **city**: The city where the university is located.
-        4.  **language**: The primary language of instruction ('English', 'Italian', or 'Mixed').
-        5.  **annualFee**: The estimated annual tuition fee in Euros as a number. If it's a range, provide an average.
-        6.  **description**: A brief, one-sentence description in Turkish of what makes the program notable.
-        7.  **websiteUrl**: The direct, full URL to the official university or program page. Ensure it is a valid, clickable URL.
-
-        Return the data ONLY in the specified JSON format as an array of objects. Do not include any other text, markdown, or explanations.
+        
+        For each program found, provide the following details:
+        - universityName
+        - programName
+        - city
+        - language: Must be 'English', 'Italian', or 'Mixed'.
+        - annualFee: An estimated integer value.
+        - description: A brief, enticing summary for a student (in Turkish, 1-2 sentences).
+        - websiteUrl: A valid, direct URL to the program or university page.
+        
+        Return the data ONLY in the specified JSON format. Do not include any other text.
     `;
-
+    
     const responseSchema = {
         type: Type.ARRAY,
         items: {
@@ -323,7 +378,7 @@ export const fetchUniversities = async (filters: UniversityFilters): Promise<Uni
                 universityName: { type: Type.STRING },
                 programName: { type: Type.STRING },
                 city: { type: Type.STRING },
-                language: { type: Type.STRING, enum: ['English', 'Italian', 'Mixed'] },
+                language: { type: Type.STRING },
                 annualFee: { type: Type.INTEGER },
                 description: { type: Type.STRING },
                 websiteUrl: { type: Type.STRING }
@@ -332,20 +387,24 @@ export const fetchUniversities = async (filters: UniversityFilters): Promise<Uni
         }
     };
     
-     try {
-        const response = await ai.models.generateContent({
+    try {
+        const localAi = getAiInstance();
+        const response = await localAi.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: responseSchema,
+                tools: [{ googleSearch: {} }] // Use search for up-to-date program info
             },
         });
         
-        const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as UniversityProgram[];
+        const jsonStr = response.text.trim();
+        const programs: UniversityProgram[] = JSON.parse(jsonStr);
+
+        return programs;
     } catch (error) {
-        console.error("Error fetching university programs:", error);
-        throw new Error("Failed to get university programs from the AI model.");
+        console.error("Error fetching universities:", error);
+        throw new Error("Failed to fetch university programs.");
     }
 };
