@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🇮🇹</text></svg>">
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>İtalya Eğitim Rehberi</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -26,7 +26,7 @@
         --land-stroke: #C0C0C0;
         --city-default: #007BFF;
         --city-hover: #0056b3;
-        --city-selected: #D6336C;
+        --city-selected: #DC2626; /* A clearer, more vibrant red */
         --city-comparison: #fd7e14; /* Orange for comparison */
         --city-recommendation: #F59E0B; /* Amber for recommendation */
       }
@@ -37,34 +37,35 @@
         font-family: 'Inter', sans-serif;
         background-image: linear-gradient(to top, #e6e9f0 0%, #eef1f5 100%);
       }
-      @keyframes gentle-pulse {
+      /* More prominent and visually distinct pulse animations */
+      @keyframes gentle-pulse { /* For selected cities */
         0%, 100% {
-          transform: scale(2.2);
+          transform: scale(2.5);
           opacity: 0;
         }
         50% {
           transform: scale(1);
-          opacity: 0.5;
+          opacity: 0.65;
         }
       }
-       @keyframes gentle-pulse-orange {
+       @keyframes gentle-pulse-orange { /* For comparison cities */
         0%, 100% {
-          transform: scale(2.2);
+          transform: scale(2.5);
           opacity: 0;
         }
         50% {
           transform: scale(1);
-          opacity: 0.6;
+          opacity: 0.7;
         }
       }
-       @keyframes recommendation-pulse {
+       @keyframes recommendation-pulse { /* For recommended cities */
         0%, 100% {
-          transform: scale(2.8);
+          transform: scale(3.2); /* Make it larger to stand out more */
           opacity: 0;
         }
         50% {
           transform: scale(1.2);
-          opacity: 0.7;
+          opacity: 0.8;
         }
       }
        @keyframes fill-bar {
@@ -76,13 +77,13 @@
         }
       }
       .animate-gentle-pulse {
-        animation: gentle-pulse 2.5s ease-out infinite;
+        animation: gentle-pulse 2.4s ease-out infinite;
       }
        .animate-gentle-pulse-orange {
-        animation: gentle-pulse-orange 2.5s ease-out infinite;
+        animation: gentle-pulse-orange 2.4s ease-out infinite;
       }
       .animate-recommendation-pulse {
-        animation: recommendation-pulse 2s ease-out infinite;
+        animation: recommendation-pulse 2.2s ease-out infinite;
       }
       
       /* --- Enhanced Prose Styles --- */
@@ -219,8 +220,8 @@
   <body>
     <div id="root"></div>
     <!-- Firebase SDKs -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script type="module" src="/index.tsx"></script>
   </body>
 </html>
